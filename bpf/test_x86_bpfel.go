@@ -12,6 +12,8 @@ import (
 	"github.com/cilium/ebpf"
 )
 
+type TestEventHelper struct{ Stackid uint32 }
+
 // LoadTest returns the embedded CollectionSpec for Test.
 func LoadTest() (*ebpf.CollectionSpec, error) {
 	reader := bytes.NewReader(_TestBytes)
@@ -54,8 +56,8 @@ type TestSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type TestProgramSpecs struct {
-	HelperGetStack   *ebpf.ProgramSpec `ebpf:"helper_get_stack"`
-	ManuallyGetStack *ebpf.ProgramSpec `ebpf:"manually_get_stack"`
+	HelperGetStack *ebpf.ProgramSpec `ebpf:"helper_get_stack"`
+	ManualGetStack *ebpf.ProgramSpec `ebpf:"manual_get_stack"`
 }
 
 // TestMapSpecs contains maps before they are loaded into the kernel.
@@ -70,6 +72,7 @@ type TestMapSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type TestVariableSpecs struct {
+	*ebpf.VariableSpec `ebpf:"__"`
 }
 
 // TestObjects contains all objects after they have been loaded into the kernel.
@@ -107,20 +110,21 @@ func (m *TestMaps) Close() error {
 //
 // It can be passed to LoadTestObjects or ebpf.CollectionSpec.LoadAndAssign.
 type TestVariables struct {
+	*ebpf.Variable `ebpf:"__"`
 }
 
 // TestPrograms contains all programs after they have been loaded into the kernel.
 //
 // It can be passed to LoadTestObjects or ebpf.CollectionSpec.LoadAndAssign.
 type TestPrograms struct {
-	HelperGetStack   *ebpf.Program `ebpf:"helper_get_stack"`
-	ManuallyGetStack *ebpf.Program `ebpf:"manually_get_stack"`
+	HelperGetStack *ebpf.Program `ebpf:"helper_get_stack"`
+	ManualGetStack *ebpf.Program `ebpf:"manual_get_stack"`
 }
 
 func (p *TestPrograms) Close() error {
 	return _TestClose(
 		p.HelperGetStack,
-		p.ManuallyGetStack,
+		p.ManualGetStack,
 	)
 }
 
