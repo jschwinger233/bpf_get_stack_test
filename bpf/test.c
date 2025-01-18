@@ -25,13 +25,17 @@ struct event_helper {
 	__u32 stackid;
 };
 
-struct event_manual {
+const struct event_helper *___event_helper __attribute__((unused));
+
+struct event_manual_meta {
 	__u64 depth;
+};
+
+struct event_manual {
 	__u64 pcs[MAX_STACK_DEPTH];
 };
 
-const struct event_helper *__ __attribute__((unused));
-//const struct event_manual *___ __attribute__((unused));
+const struct event_manual_meta *__event_manual_meta __attribute__((unused));
 
 
 SEC("kprobe")
@@ -49,7 +53,7 @@ int manual_get_stack(struct pt_regs *ctx)
 	u64 depth = 0;
 	u64 fps[MAX_STACK_DEPTH];
 	fps[0] = PT_REGS_FP(ctx);
-	for (depth = 0; depth < MAX_STACK_DEPTH-1; depth++) {
+	for (depth = 0; depth < MAX_STACK_DEPTH-3; depth++) {
 		if (bpf_probe_read_kernel(&fps[depth+1],
 					  sizeof(fps[depth+1]),
 					  (void *)fps[depth]) < 0)
@@ -59,19 +63,29 @@ int manual_get_stack(struct pt_regs *ctx)
 			break;
 	}
 
-	struct event_manual *event = (struct event_manual *)bpf_ringbuf_reserve(
+	depth += 3;
+
+	void *ringbuf = bpf_ringbuf_reserve(
 		&event_ringbuf,
-		sizeof(u64) + (depth + 1) * sizeof(u64),
+		sizeof(u64) + depth * sizeof(u64),
 		0);
-	if (!event)
+	if (!ringbuf)
 		return 0;
 
-	event->depth = depth;
-	for (u64 i = 0; i <= depth; i++) {
-		bpf_probe_read_kernel(&event->pcs[i],
-				      sizeof(event->pcs[i]),
+	struct event_manual_meta *meta = ringbuf;
+	meta->depth = depth;
+
+	struct event_manual *event = ringbuf + sizeof(*meta);
+	event->pcs[0] = PT_REGS_IP(ctx);
+	u64 sp = PT_REGS_SP(ctx);
+	bpf_probe_read_kernel(&event->pcs[1],
+			      sizeof(event->pcs[1]),
+			      (void *)sp);
+	for (u64 i = 0; i < depth - 2; i++) {
+		bpf_probe_read_kernel(&event->pcs[i+2],
+				      sizeof(event->pcs[i+2]),
 				      (void *)(fps[i] + 8));
 	}
-	bpf_ringbuf_submit(event, BPF_RB_NO_WAKEUP);
+	bpf_ringbuf_submit(ringbuf, 0);
 	return 0;
 }

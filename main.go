@@ -55,13 +55,13 @@ func main() {
 				if errors.Is(err, ringbuf.ErrClosed) {
 					return
 				}
-				slog.Debug("failed to read ringbuf", "err", err)
+				slog.Error("failed to read ringbuf", "err", err)
 				continue
 			}
 
 			var event bpf.TestEventHelper
 			if err = binary.Read(bytes.NewBuffer(rec.RawSample), binary.LittleEndian, &event); err != nil {
-				slog.Debug("failed to parse ringbuf event", "err", err)
+				slog.Error("failed to parse ringbuf event", "err", err)
 				continue
 			}
 
@@ -90,6 +90,55 @@ func main() {
 			panic(err)
 		}
 		defer k.Close()
+
+		eventsReader, err := ringbuf.NewReader(objs.EventRingbuf)
+		if err != nil {
+			slog.Error("Failed to create ringbuf reader", "err", err)
+			return
+		}
+		defer eventsReader.Close()
+
+		ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+		defer cancel()
+
+		go func() {
+			<-ctx.Done()
+			eventsReader.Close()
+		}()
+
+		for {
+			rec, err := eventsReader.Read()
+			if err != nil {
+				if errors.Is(err, ringbuf.ErrClosed) {
+					return
+				}
+				slog.Error("failed to read ringbuf", "err", err)
+				continue
+			}
+
+			var meta bpf.TestEventManualMeta
+			if err = binary.Read(bytes.NewBuffer(rec.RawSample), binary.LittleEndian, &meta); err != nil {
+				slog.Error("failed to parse ringbuf meta", "err", err)
+				continue
+			}
+
+			if err != nil {
+				slog.Error("Failed to get dwarf", "err", err)
+				return
+			}
+
+			fmt.Printf("\nStack Depth: %d\n", meta.Depth)
+
+			event := make([]uint64, meta.Depth)
+			if err = binary.Read(bytes.NewBuffer(rec.RawSample[8:]), binary.LittleEndian, &event); err != nil {
+				slog.Error("failed to parse ringbuf event", "err", err)
+				return
+			}
+			for i := 0; i < int(meta.Depth); i++ {
+				ksym, _ := NearestKsym(event[i])
+				fmt.Printf("%s\n", ksym.Name)
+			}
+		}
 	} else {
 		panic("Unknown mode")
 	}

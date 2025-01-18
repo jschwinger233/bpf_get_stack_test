@@ -14,6 +14,8 @@ import (
 
 type TestEventHelper struct{ Stackid uint32 }
 
+type TestEventManualMeta struct{ Depth uint64 }
+
 // LoadTest returns the embedded CollectionSpec for Test.
 func LoadTest() (*ebpf.CollectionSpec, error) {
 	reader := bytes.NewReader(_TestBytes)
@@ -72,7 +74,8 @@ type TestMapSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type TestVariableSpecs struct {
-	*ebpf.VariableSpec `ebpf:"__"`
+	EventHelper     *ebpf.VariableSpec `ebpf:"___event_helper"`
+	EventManualMeta *ebpf.VariableSpec `ebpf:"__event_manual_meta"`
 }
 
 // TestObjects contains all objects after they have been loaded into the kernel.
@@ -110,7 +113,8 @@ func (m *TestMaps) Close() error {
 //
 // It can be passed to LoadTestObjects or ebpf.CollectionSpec.LoadAndAssign.
 type TestVariables struct {
-	*ebpf.Variable `ebpf:"__"`
+	EventHelper     *ebpf.Variable `ebpf:"___event_helper"`
+	EventManualMeta *ebpf.Variable `ebpf:"__event_manual_meta"`
 }
 
 // TestPrograms contains all programs after they have been loaded into the kernel.
